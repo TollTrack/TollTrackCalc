@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toll Tracker</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root{
+  --blue:#e53935; --blue-d:#c62828; --cyan:#e53935; --ink:#424242; --muted:#9e9e9e; --label:#757575;
+  --bg:#f5f5f5; --card:#ffffff; --line:#e0e0e0; --ok:#2e7d32; --warn:#ef6c00; --err:#c62828;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Roboto,'Segoe UI',Arial,sans-serif;color:var(--ink);background:var(--bg);font-size:13px}
+header{background:#fff;color:var(--ink);padding:10px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+header h1{font-size:17px;margin:0;font-weight:500;color:#212121}
+header .sub{font-size:12px;color:var(--muted)}
+header .right{margin-left:auto;font-size:12px;display:flex;gap:10px;align-items:center;color:var(--label)}
+main{max-width:1800px;margin:0 auto;padding:16px 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:2px;padding:16px 20px;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.card h2{margin:0 0 14px;font-size:15px;color:#212121;font-weight:500}
+.row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
+.row>div{display:flex;flex-direction:column;gap:4px;min-width:160px;flex:1}
+label{font-size:10.5px;font-weight:500;color:var(--label);text-transform:uppercase;letter-spacing:.4px}
+.vgrid label,.assets label,label:has(> input[type=checkbox]){text-transform:none;letter-spacing:0;font-size:13px}
+input[type=checkbox]{accent-color:var(--blue)}
+input,select{font:inherit;padding:7px 9px;border:1px solid #d6d6d6;border-radius:2px;background:#fff;color:var(--ink);width:100%}
+input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+button{font:inherit;font-weight:500;padding:7px 14px;border-radius:2px;border:1px solid var(--blue);background:var(--blue);color:#fff;cursor:pointer;white-space:nowrap}
+button:hover{background:var(--blue-d);border-color:var(--blue-d)}
+button.sec{background:#f5f5f5;color:#616161;border-color:#e0e0e0}
+button.sec:hover{background:#eeeeee;color:#424242}
+button:disabled{opacity:.5;cursor:default}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:14px;flex-wrap:wrap}
+.tabs button{background:none;color:var(--label);border:none;border-bottom:2px solid transparent;border-radius:0;margin-bottom:-1px;padding:9px 14px}
+.tabs button:hover{background:none;color:#212121}
+.tabs button.on{color:var(--blue);border-bottom-color:var(--blue)}
+.hide{display:none!important}
+.status{font-size:13px;margin-top:8px;min-height:18px}
+.status.err{color:var(--err)} .status.ok{color:var(--ok)}
+.bar{height:3px;background:var(--line);border-radius:0;overflow:hidden;margin-top:8px}
+.bar>i{display:block;height:100%;width:0;background:var(--cyan);transition:width .2s}
+.tbl-wrap{overflow:auto;max-height:520px;border:1px solid var(--line);border-radius:2px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{position:sticky;top:0;background:#fafafa;color:var(--label);text-align:left;padding:8px 10px;font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #f0f0f0;white-space:nowrap}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr:hover td{background:#fafafa}
+tfoot td{font-weight:500;background:#fafafa;color:#212121}
+.summary{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px;font-size:13px}
+.summary b{font-size:18px;color:#212121;font-weight:500;display:block}
+.pill{display:inline-block;padding:1px 7px;border-radius:2px;font-size:11px;font-weight:500;background:#eeeeee;color:#616161}
+.pill.warn{background:#fff3e0;color:var(--warn)}
+.assets{max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px 10px;columns:3 260px}
+.assets label{display:flex;gap:6px;align-items:center;font-weight:400;color:var(--ink);padding:2px 0;break-inside:avoid}
+.assets input{width:auto}
+#assetList{max-height:none;columns:auto;padding:0;border:none}
+.vgroup{border:1px solid var(--line);border-radius:2px;margin-bottom:6px;background:#fff}
+.vgroup>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:6px 10px;font-weight:500;font-size:13px;background:#fafafa;border-radius:2px}
+.vgroup>summary::-webkit-details-marker{display:none}
+.vgroup>summary::before{content:'▸';color:var(--blue);width:10px}
+.vgroup[open]>summary::before{content:'▾'}
+.vgroup>summary input{width:auto;margin:0}
+.vgroup>summary .cnt{margin-left:auto;font-weight:400;font-size:12px;color:var(--muted)}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:0 12px;padding:4px 10px 8px}
+.vgrid label{display:flex;gap:6px;align-items:center;font-weight:400;font-size:13px;color:var(--ink);padding:3px 0;white-space:nowrap;overflow:hidden}
+.vgrid label span.n{overflow:hidden;text-overflow:ellipsis}
+.vgrid input{width:auto;margin:0}
+.vgrid .pill{padding:0 5px;font-size:10px}
+.tariff input{width:90px;padding:4px 6px;text-align:right}
+.hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+@media (max-width:600px){main{padding:10px}.row>div{min-width:100%}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Toll Tracker</h1>
+    <div class="sub">Toll gate passes &amp; cost by vehicle class</div>
+  </div>
+  <div class="right" id="whoami"></div>
+</header>
+
+<main>
+  <!-- Connect -->
+  <section class="card" id="connectCard">
+    <h2>Connect</h2>
+    <div class="row">
+      <div style="max-width:120px"><label>Region</label>
+        <select id="region"><option value="us1" selected>us1</option><option value="eu1">eu1</option><option value="za1">za1</option></select></div>
+      <div style="max-width:170px"><label>Sign in with</label>
+        <select id="authMode" onchange="authModeChanged()"><option value="login" selected>Fleet login</option><option value="key">API key</option></select></div>
+      <div style="flex:2" class="auth-login"><label>Fleet username</label><input id="username" autocomplete="username" placeholder="Same as fleet.mtrack.co.za"></div>
+      <div style="flex:2" class="auth-login"><label>Password</label><input id="password" type="password" autocomplete="current-password"></div>
+      <div style="flex:3" class="auth-key hide"><label>Static API key</label><input id="apiKey" type="password" placeholder="Paste KT1 x-api-key" autocomplete="off"></div>
+      <div style="flex:2"><label>Client (optional)</label><input id="clientId" placeholder="Automatic from your login"></div>
+      <div style="flex:0"><button id="btnConnect" onclick="connect()">Connect</button></div>
+    </div>
+    <div class="hint">Your password / key is only sent to api.&lt;region&gt;.kt1.io and is never saved. The session stays in this tab and renews itself while you work.</div>
+    <div class="status" id="connStatus"></div>
+  </section>
+
+  <div id="app" class="hide">
+    <div class="tabs">
+      <button class="on" data-tab="report" onclick="tab(this)">Toll Report</button>
+      <button data-tab="tariffs" onclick="tab(this)">Tariffs</button>
+      <button data-tab="gates" onclick="tab(this)">Toll Gates</button>
+    </div>
+
+    <!-- Report -->
+    <div data-pane="report">
+      <section class="card">
+        <h2>Run report</h2>
+        <div class="row">
+          <div><label>Toll gate zone group</label><select id="zoneGroup" onchange="changeGroup(this)"></select></div>
+          <div><label>Date range</label>
+            <select id="range" onchange="applyRange()"><option value="today">Today</option><option value="7" selected>Last 7 days</option><option value="30">Last 30 days</option><option value="custom">Custom range</option></select></div>
+          <div class="custom-range hide"><label>From</label><input type="date" id="dFrom"></div>
+          <div class="custom-range hide"><label>To (inclusive)</label><input type="date" id="dTo"></div>
+          <div><label>Vehicles without toll class</label>
+            <select id="defaultCls"><option value="">Leave unpriced</option><option value="class1">Treat as Class 1</option><option value="class2" selected>Treat as Class 2</option><option value="class3">Treat as Class 3</option><option value="class4">Treat as Class 4</option></select></div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <label style="margin:0">Vehicles</label>
+          <input id="assetFilter" placeholder="Filter…" oninput="renderAssets()" style="max-width:220px">
+          <button class="sec" onclick="checkAll(true)">All</button>
+          <button class="sec" onclick="checkAll(false)">None</button>
+          <label style="display:flex;gap:6px;align-items:center;margin:0;font-weight:400;color:var(--ink)"><input type="checkbox" id="onlyActive" checked onchange="renderAssets()" style="width:auto"> Active only</label>
+          <span class="hint" id="assetCount" style="margin:0"></span>
+        </div>
+        <div class="assets" id="assetList" style="margin-top:8px"></div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button id="btnRun" onclick="runReport()">Run report</button>
+          <button id="btnStop" class="sec hide" onclick="stopFlag=true">Stop</button>
+        </div>
+        <div class="bar"><i id="prog"></i></div>
+        <div class="status" id="runStatus"></div>
+      </section>
+
+      <section class="card hide" id="resultsCard">
+        <h2>Results</h2>
+        <div class="summary" id="summary"></div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <select id="view" onchange="renderResults()" style="max-width:220px">
+            <option value="trips" selected>Trips via toll</option>
+            <option value="custom">Custom report</option>
+          </select>
+          <button class="sec" onclick="exportXlsx()">Export Excel</button>
+          <button class="sec" onclick="exportCsv()">Export CSV</button>
+          <button class="sec" onclick="exportPdf()">Export PDF</button>
+        </div>
+        <details id="colPicker" class="hide" open style="margin-bottom:10px;border:1px solid var(--line);border-radius:6px;padding:8px 12px">
+          <summary style="cursor:pointer;font-weight:600;color:var(--blue)">Report columns <span class="hint" id="colCount"></span></summary>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">
+            <input id="colFilter" placeholder="Filter columns…" oninput="renderColPicker()" style="max-width:220px">
+            <button class="sec" onclick="setCols('all')">All</button>
+            <button class="sec" onclick="setCols('none')">None</button>
+            <button class="sec" onclick="setCols('default')">Default</button>
+          </div>
+          <div id="colList"></div>
+        </details>
+        <div class="tbl-wrap" id="resultTable"></div>
+        <div class="hint">A pass is a zone <b>enter</b> event on a gate in the selected group. Repeat entries on the same gate within <span id="dedupMin">10</span> minutes count once. Overlapping gate zones (under 1 km apart, entered within 3 minutes) count as one pass, priced at the main line. Cost uses the vehicle's <code>tolltarifclass</code> Information field and the Tariffs tab.</div>
+      </section>
+    </div>
+
+    <!-- Tariffs -->
+    <div data-pane="tariffs" class="hide">
+      <section class="card">
+        <h2>Tariffs (Rand per pass) <span class="grpTag"></span></h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <button onclick="saveTariffs()">Save</button>
+          <button class="sec" onclick="lookupTariffs(false)" title="Fill empty cells from the built-in tariff schedule">Lookup (fill blanks)</button>
+          <button class="sec" onclick="lookupTariffs(true)" title="Overwrite all matched gates from the built-in tariff schedule">Lookup (overwrite)</button>
+          <button class="sec" onclick="lookupFromUrl()" title="Load a newer schedule from a CSV link, e.g. a published Google Sheet">Update from link…</button>
+          <button class="sec" onclick="exportTariffs()">Export CSV</button>
+          <button class="sec" onclick="document.getElementById('tariffFile').click()">Import CSV</button>
+          <input type="file" id="tariffFile" accept=".csv" class="hide" onchange="importTariffs(this)">
+        </div>
+        <div class="hint" style="margin:0 0 10px">Enter the current SANRAL / concession tariff for each gate and class. Saved in this browser; use Export/Import CSV to share with colleagues. CSV columns: <code>gate,class1,class2,class3,class4</code>.<br>
+          Class 1 light vehicle · Class 2 medium heavy (2 axles) · Class 3 large heavy (3–4 axles) · Class 4 extra heavy (5+ axles).</div>
+        <div class="hint" style="margin:0 0 10px" id="scheduleInfo"></div>
+        <div class="tbl-wrap tariff" id="tariffTable"></div>
+        <div class="status" id="tariffStatus"></div>
+      </section>
+    </div>
+
+    <!-- Gates -->
+    <div data-pane="gates" class="hide">
+      <section class="card">
+        <h2>Toll gates in group <span class="grpTag"></span></h2>
+        <div class="tbl-wrap" id="gateTable"></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<script>
+const S = { region:'us1', key:'', token:'', refresh:'', client:'', clientName:'', clientList:[], groups:[], gates:[], assets:[], results:null };
+let stopFlag = false;
+const DEDUP_MIN = 10;
+const CLASSES = ['class1','class2','class3','class4'];
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const rand = n => 'R ' + (Number(n)||0).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2});
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function api(path, params = {}) {
+  const u = new URL(`https://api.${S.region}.kt1.io/fleet/v2${path}`);
+  Object.entries(params).forEach(([k,v]) => v !== '' && v != null && u.searchParams.set(k, v));
+  for (let attempt = 0; ; attempt++) {
+    const r = await fetch(u, { headers: S.key ? { 'x-api-key': S.key } : { 'x-access-token': S.token } });
+    if (r.status === 429 && attempt < 4) { await sleep(1000 * (attempt + 1)); continue; }
+    if (r.status === 401 && !S.key && S.refresh && attempt < 2 && await refreshToken()) continue;
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.message || `HTTP ${r.status}`);
+    return d;
+  }
+}
+async function apiAll(path, params = {}) {
+  const out = []; let offset = 0;
+  for (;;) {
+    const d = await api(path, { ...params, limit: 500, offset });
+    const items = d.items || [];
+    out.push(...items);
+    if (items.length < 500 || (d.count != null && out.length >= d.count)) return out;
+    offset += 500;
+  }
+}
+// ── Fleet login (username/password → 60-min token, refreshed automatically) ──
+let refreshing = null;
+function refreshToken() {
+  return refreshing ||= (async () => {
+    try {
+      const r = await fetch(`https://api.${S.region}.kt1.io/fleet/v2/auth/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: S.refresh }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.accessToken) return false;
+      S.token = d.accessToken; if (d.refreshToken) S.refresh = d.refreshToken;
+      return true;
+    } finally { setTimeout(() => refreshing = null, 0); }
+  })();
+}
+async function signIn(username, password) {
+  const r = await fetch(`https://api.${S.region}.kt1.io/fleet/v2/auth/signin`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.accessToken) throw new Error(d.message || `Sign-in failed (HTTP ${r.status})`);
+  S.token = d.accessToken; S.refresh = d.refreshToken || '';
+}
+function authModeChanged() {
+  const key = $('authMode').value === 'key';
+  document.querySelectorAll('.auth-key').forEach(el => el.classList.toggle('hide', !key));
+  document.querySelectorAll('.auth-login').forEach(el => el.classList.toggle('hide', key));
+}
+function setStatus(id, msg, cls = '') { const el = $(id); el.textContent = msg; el.className = 'status ' + cls; }
+
+// ── Connect ──────────────────────────────────────────
+async function connect() {
+  S.region = $('region').value;
+  const useKey = $('authMode').value === 'key';
+  S.key = useKey ? $('apiKey').value.trim() : '';
+  let client = $('clientId').value.trim();
+  if (useKey && !S.key) return setStatus('connStatus', 'Enter your API key.', 'err');
+  if (useKey && !client) return setStatus('connStatus', 'With an API key, enter the client (UUID or name).', 'err');
+  if (!useKey && (!$('username').value.trim() || !$('password').value)) return setStatus('connStatus', 'Enter your fleet username and password.', 'err');
+  $('btnConnect').disabled = true;
+  try {
+    S.clientList = [];
+    if (!useKey) {
+      setStatus('connStatus', 'Signing in…');
+      await signIn($('username').value.trim(), $('password').value); $('password').value = '';
+      if (!client) {
+        // Work out the client from the signed-in user
+        setStatus('connStatus', 'Finding your client…');
+        let uid = ''; try { uid = JSON.parse(atob(S.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).sub || ''; } catch {}
+        const user = uid ? await api(`/accounts/users/${uid}`).catch(() => null) : null;
+        if (user?.owner?.type === 'client') client = user.owner.id;
+        else if (user?.owner?.id) {
+          S.clientList = (await apiAll('/accounts/clients', { owner: user.owner.id, sort: 'name' })).map(c => ({ id: c.id, name: c.name || c.id }));
+          client = user.defaultClient?.id && S.clientList.some(c => c.id === user.defaultClient.id) ? user.defaultClient.id : S.clientList[0]?.id;
+        }
+        if (!client) throw new Error('Could not work out your client — enter it in the Client box.');
+      }
+    }
+    if (!/^[0-9a-f-]{36}$/i.test(client)) {
+      setStatus('connStatus', 'Looking up client…');
+      const d = await api('/search/entities', { query: client, deleted: 'false', limit: 20 });
+      const hit = (d.items || []).find(i => i.type === 'client') || (d.items || [])[0];
+      if (!hit) throw new Error('Client not found');
+      client = hit.type === 'client' ? hit.id : hit.owner.id;
+    }
+    await loadClient(client);
+    $('app').classList.remove('hide');
+    $('connectCard').classList.add('hide');
+  } catch (e) {
+    setStatus('connStatus', 'Connect failed: ' + e.message, 'err');
+  } finally { $('btnConnect').disabled = false; }
+}
+
+async function loadClient(client) {
+  S.client = client; S.results = null;
+  $('resultsCard').classList.add('hide'); selAssets.clear();
+  setStatus('connStatus', 'Loading zone groups and vehicles…'); setStatus('runStatus', 'Loading client…');
+  const [groups, assets] = await Promise.all([
+    apiAll('/entities/zonegroups', { owner: client }),
+    apiAll('/entities/assets', { owner: client, sort: 'name' }),
+  ]);
+  S.groups = groups;
+  S.clientName = S.clientList.find(c => c.id === client)?.name || assets[0]?.owner?.name || groups[0]?.owner?.name || client;
+  S.assets = assets.map(a => ({
+    id: a.id, name: (a.name || '').trim(), state: a.state,
+    cls: normClass(a.fields?.tolltarifclass), rawCls: a.fields?.tolltarifclass || '',
+    group: (a.groups || []).map(g => g.name).join(', '), raw: a,
+  }));
+  const sel = $('zoneGroup');
+  sel.innerHTML = groups.map(g => `<option value="${g.id}">${esc(g.name)}${g.parent ? ' — ' + esc(g.parent.name) : ''}</option>`).join('');
+  const toll = groups.find(g => /toll/i.test(g.name));
+  if (toll) sel.value = toll.id;
+  await loadGates();
+  $('whoami').innerHTML = (S.clientList.length > 1
+    ? `<input id="clientPick" list="clientDl" value="${esc(S.clientName)}" onfocus="this.select()" onchange="pickClient(this)" title="Type to search your clients" style="width:320px;padding:4px 8px"><datalist id="clientDl">${S.clientList.filter(c => !/cancel/i.test(c.name)).map(c => `<option value="${esc(c.name)}">`).join('')}</datalist>`
+    : `<span>${esc(S.clientName)}</span>`) + `<span class="pill">${S.region}</span>`;
+  applyRange(); renderAssets();
+  setStatus('runStatus', toll ? '' : 'No zone group with "toll" in its name was found for this client.', toll ? '' : 'err');
+}
+function pickClient(input) {
+  const c = S.clientList.find(x => x.name === input.value) || S.clientList.find(x => x.name.toLowerCase().includes(input.value.toLowerCase().trim()));
+  if (!c) { input.value = S.clientName; return setStatus('runStatus', 'No client matches that name.', 'err'); }
+  if (c.id !== S.client) switchClient(c.id); else input.value = S.clientName;
+}
+async function switchClient(id) {
+  $('clientPick').disabled = true;
+  try { await loadClient(id); } catch (e) { setStatus('runStatus', 'Could not load client: ' + e.message, 'err'); }
+  finally { const p = $('clientPick'); if (p) p.disabled = false; }
+}
+
+function normClass(v) {
+  const m = String(v || '').match(/[1-4]/);
+  return m ? 'class' + m[0] : '';
+}
+
+let lastGroup = '';
+function changeGroup(sel) {
+  const name = sel.options[sel.selectedIndex].text;
+  if (!/toll/i.test(name) && !confirm(`"${name}" doesn't look like a toll gate group. Its zones will be treated as toll gates in the report, Tariffs and Toll Gates tabs.\n\nUse it anyway?`)) {
+    sel.value = lastGroup; return;
+  }
+  loadGates();
+}
+async function loadGates() {
+  const gid = $('zoneGroup').value;
+  lastGroup = gid;
+  const sel = $('zoneGroup'), gname = sel.options[sel.selectedIndex]?.text.split(' — ')[0] || '';
+  document.querySelectorAll('.grpTag').forEach(el => { el.textContent = '· ' + gname; el.className = 'grpTag pill' + (/toll/i.test(gname) ? '' : ' warn'); });
+  const zones = await apiAll('/entities/zones', { owner: S.client, filter: `group.id=${gid}` });
+  S.gates = zones.filter(z => z.group?.id === gid && z.state !== 'deleted')
+    .map(z => ({ id: z.id, name: z.name, lat: z.center?.y, lon: z.center?.x, modified: z.modifiedDate }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  renderGates(); renderTariffs();
+  if (!Object.keys(getTariffs()).length) lookupTariffs(false);
+}
+
+// ── Assets ───────────────────────────────────────────
+const selAssets = new Set();
+function renderAssets() {
+  const f = $('assetFilter').value.toLowerCase(), onlyActive = $('onlyActive').checked;
+  const list = S.assets.filter(a => (!onlyActive || a.state === 'active') && (!f || a.name.toLowerCase().includes(f) || a.group.toLowerCase().includes(f)));
+  const open = new Set([...$('assetList').querySelectorAll('.vgroup[open]')].map(d => d.dataset.g));
+  const groups = new Map();
+  list.forEach(a => { const g = a.raw?.groups?.[0]?.name || 'No group'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(a); });
+  $('assetList').innerHTML = [...groups].sort((a, b) => a[0].localeCompare(b[0])).map(([g, as]) =>
+    `<details class="vgroup" data-g="${esc(g)}" ${f || open.has(g) ? 'open' : ''}>
+      <summary><input type="checkbox" class="gchk" onclick="event.stopPropagation()" onchange="checkGroup(this)"> ${esc(g)} <span class="cnt"></span></summary>
+      <div class="vgrid">${as.map(a =>
+        `<label title="${esc(a.name)}${a.rawCls ? ' · ' + esc(a.rawCls) : ''}"><input type="checkbox" value="${a.id}" ${selAssets.has(a.id) ? 'checked' : ''} onchange="this.checked?selAssets.add(this.value):selAssets.delete(this.value);countAssets()">
+         <span class="n">${esc(a.name)}</span>${a.cls ? `<span class="pill">${a.cls.replace('class', 'C')}</span>` : ''}</label>`).join('')}</div>
+    </details>`).join('') || '<span class="hint">No vehicles match.</span>';
+  countAssets();
+}
+function checkGroup(gcb) {
+  gcb.closest('.vgroup').querySelectorAll('.vgrid input').forEach(cb => { cb.checked = gcb.checked; gcb.checked ? selAssets.add(cb.value) : selAssets.delete(cb.value); });
+  countAssets();
+}
+function checkAll(on) {
+  $('assetList').querySelectorAll('.vgrid input').forEach(cb => { cb.checked = on; on ? selAssets.add(cb.value) : selAssets.delete(cb.value); });
+  countAssets();
+}
+function countAssets() {
+  const n = selAssets.size, noCls = S.assets.filter(a => selAssets.has(a.id) && !a.cls).length;
+  $('assetCount').textContent = `${n} selected` + (noCls ? ` · ${noCls} without toll class` : '');
+  $('assetList').querySelectorAll('.vgroup').forEach(d => {
+    const cbs = [...d.querySelectorAll('.vgrid input')], k = cbs.filter(c => c.checked).length, g = d.querySelector('.gchk');
+    g.checked = k === cbs.length; g.indeterminate = k > 0 && k < cbs.length;
+    d.querySelector('.cnt').textContent = `${k ? k + ' / ' : ''}${cbs.length} vehicles`;
+  });
+}
+
+// ── Dates ────────────────────────────────────────────
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function applyRange() {
+  const v = $('range').value, t = new Date();
+  document.querySelectorAll('.custom-range').forEach(el => el.classList.toggle('hide', v !== 'custom'));
+  if (v === 'custom') { if (!$('dFrom').value) { $('dFrom').value = ymd(new Date(t.getTime() - 6 * 864e5)); $('dTo').value = ymd(t); } return; }
+  const days = v === 'today' ? 1 : +v;
+  $('dTo').value = ymd(t); $('dFrom').value = ymd(new Date(t.getTime() - (days - 1) * 864e5));
+}
+
+// ── Report ───────────────────────────────────────────
+async function runReport() {
+  const ids = [...selAssets];
+  if (!ids.length) return setStatus('runStatus', 'Select at least one vehicle.', 'err');
+  if ($('range').value !== 'custom') applyRange();
+  if (!$('dFrom').value || !$('dTo').value) return setStatus('runStatus', 'Set a date range.', 'err');
+  const start = new Date($('dFrom').value + 'T00:00:00'), end = new Date($('dTo').value + 'T00:00:00');
+  end.setDate(end.getDate() + 1);
+  if (end <= start) return setStatus('runStatus', 'From must be before To.', 'err');
+  const days = Math.round((end - start) / 864e5);
+  if (days > 93) return setStatus('runStatus', 'Maximum range is 93 days.', 'err');
+
+  const gateIds = new Map(S.gates.map(g => [g.id, g]));
+  const jobs = [];
+  ids.forEach(id => { for (let t = start.getTime(); t < end.getTime(); t += 864e5) jobs.push({ id, s: new Date(t), e: new Date(Math.min(t + 864e5, end.getTime())) }); });
+
+  stopFlag = false; $('btnRun').disabled = true; $('btnStop').classList.remove('hide');
+  const raw = [], trips = new Map(); let done = 0, errors = 0;
+  const worker = async () => {
+    while (jobs.length && !stopFlag) {
+      const j = jobs.shift();
+      try {
+        const q = { start: j.s.toISOString(), end: j.e.toISOString() };
+        const [items, tr] = await Promise.all([
+          apiAll(`/data/history/events/${j.id}`, q),
+          apiAll(`/data/history/trips/${j.id}`, q).catch(e => { console.error('trips', j, e); return []; }),
+        ]);
+        items.forEach(ev => {
+          const z = ev.details?.zone;
+          if (ev.eventType === 'enter' && z && gateIds.has(z.id)) raw.push({ assetId: j.id, gateId: z.id, date: new Date(ev.eventDate), loc: ev.details?.telemetry?.location, tel: ev.details?.telemetry });
+        });
+        tr.forEach(t => t.id && trips.set(t.id, { ...t, assetId: j.id, s: new Date(t.dateStart), e: new Date(t.dateEnd) }));
+      } catch (e) { errors++; console.error(j, e); }
+      done++;
+      $('prog').style.width = (done / (done + jobs.length) * 100) + '%';
+      setStatus('runStatus', `Fetching events… ${done} requests, ${raw.length} gate entries found`);
+    }
+  };
+  await Promise.all(Array.from({ length: 4 }, worker));
+  $('btnRun').disabled = false; $('btnStop').classList.add('hide');
+
+  // Dedupe re-entries on the same gate
+  raw.sort((a, b) => a.assetId.localeCompare(b.assetId) || a.gateId.localeCompare(b.gateId) || a.date - b.date);
+  const single = [];
+  raw.forEach(p => {
+    const last = single[single.length - 1];
+    if (last && last.assetId === p.assetId && last.gateId === p.gateId && p.date - last.date < DEDUP_MIN * 6e4) return;
+    single.push(p);
+  });
+  // Overlapping geofences: entries into gates < 1 km apart within 3 min are one physical pass.
+  // Keep the main-line gate (a through trip pays the main line), then the one the schedule names best.
+  const km = (a, b) => Math.hypot((a.lat - b.lat) * 111, (a.lon - b.lon) * 99);
+  const rank = g => { const m = scheduleMatch(g.name); if (!m) return 0; return (/main line/i.test(m.plaza) ? 10 : 5) + (g.name.toUpperCase().includes(m.plaza.split(' ')[0].toUpperCase()) ? 1 : 0); };
+  single.sort((a, b) => a.assetId.localeCompare(b.assetId) || a.date - b.date);
+  const passes = [];
+  single.forEach(p => {
+    const g = gateIds.get(p.gateId);
+    const hit = passes.findLast(q => q.assetId === p.assetId && p.date - q.date < 3 * 6e4 &&
+      [q.gateId, ...q.also].some(id => { const o = gateIds.get(id); return o.lat != null && g.lat != null && km(o, g) < 1; }));
+    if (!hit) { passes.push({ ...p, also: [] }); return; }
+    if (rank(g) > rank(gateIds.get(hit.gateId))) { hit.also.push(hit.gateId); hit.gateId = p.gateId; }
+    else hit.also.push(p.gateId);
+  });
+  const tariffs = getTariffs(), assetMap = new Map(S.assets.map(a => [a.id, a])), defCls = $('defaultCls').value;
+  passes.forEach(p => {
+    const a = assetMap.get(p.assetId), g = gateIds.get(p.gateId);
+    p.asset = a.name; p.gate = g.name; p.alsoNames = p.also.map(id => gateIds.get(id).name).join(', ');
+    p.cls = a.cls || defCls; p.assumed = !a.cls && !!defCls;
+    p.rawCls = a.rawCls || (p.assumed ? p.cls.replace('class', 'Class ') + ' (assumed)' : '');
+    const t = tariffs[g.name]?.[p.cls];
+    p.cost = p.cls && t !== '' && t != null ? Number(t) : null;
+  });
+  // Attach each pass to the trip it happened on (driving trips first, then any trip covering the time)
+  const tripList = [...trips.values()];
+  passes.forEach(p => {
+    const cands = tripList.filter(t => t.assetId === p.assetId && t.s <= p.date && p.date <= t.e);
+    p.trip = cands.find(t => t.tripType === 'active') || cands[0] || null;
+  });
+  passes.sort((a, b) => a.date - b.date);
+  S.results = { passes, ids, from: $('dFrom').value, to: $('dTo').value };
+  buildColumns();
+  $('resultsCard').classList.remove('hide');
+  renderResults();
+  setStatus('runStatus', `${stopFlag ? 'Stopped' : 'Done'} — ${passes.length} passes from ${ids.length} vehicles` + (errors ? ` · ${errors} requests failed (see console)` : ''), errors ? 'err' : 'ok');
+}
+
+function groupBy(passes, key) {
+  const m = new Map();
+  passes.forEach(p => { const k = p[key]; if (!m.has(k)) m.set(k, []); m.get(k).push(p); });
+  return m;
+}
+const sumCost = ps => ps.reduce((s, p) => s + (p.cost || 0), 0);
+const unpriced = ps => ps.filter(p => p.cost == null).length;
+
+// ── Trips via toll ───────────────────────────────────
+const fmtDur = s => { s = Math.round(s || 0); const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`; };
+const fmtDT = d => d ? d.toLocaleString('en-ZA', { dateStyle: 'short', timeStyle: 'short' }) : '';
+function tripRows(passes) {
+  const m = new Map();
+  passes.forEach(p => {
+    const k = p.trip ? p.trip.id : 'none:' + p.assetId + ':' + p.date.getTime();
+    if (!m.has(k)) m.set(k, { trip: p.trip, asset: p.asset, cls: p.cls, assumed: p.assumed, passes: [] });
+    m.get(k).passes.push(p);
+  });
+  return [...m.values()].sort((a, b) => (a.trip?.s || a.passes[0].date) - (b.trip?.s || b.passes[0].date));
+}
+
+// ── Custom report: every field from vehicle, gate, pass, trip and telemetry ──
+const COLKEY = 'toll_cols_v1';
+const DEFAULT_COLS = ['Pass › Date/time', 'Vehicle › Name', 'Vehicle › Toll class', 'Gate › Name', 'Pass › Cost (R)',
+  'Trip › Start', 'Trip › From', 'Trip › End', 'Trip › To', 'Trip › Distance (km)', 'Trip › Drive time'];
+function flatObj(obj, prefix, out) {
+  Object.entries(obj || {}).forEach(([k, v]) => {
+    const key = prefix + k;
+    if (v && typeof v === 'object' && !Array.isArray(v)) flatObj(v, key + '.', out);
+    else if (Array.isArray(v)) out[key] = v.map(x => x && typeof x === 'object' ? (x.name ?? JSON.stringify(x)) : x).join(', ');
+    else out[key] = v;
+  });
+  return out;
+}
+function reportRow(p) {
+  const a = S.assets.find(x => x.id === p.assetId)?.raw || {}, t = p.trip;
+  const r = {
+    'Pass › Date/time': fmtDT(p.date), 'Pass › Cost (R)': p.cost, 'Pass › Class used': p.cls ? p.cls.replace('class', 'Class ') + (p.assumed ? ' (assumed)' : '') : '',
+    'Pass › Also entered': p.alsoNames, 'Pass › Address': p.loc?.address || '', 'Pass › Lat': p.loc?.lat, 'Pass › Lon': p.loc?.lon, 'Pass › Speed': p.loc?.speed,
+    'Vehicle › Name': p.asset, 'Vehicle › Toll class': a.fields?.tolltarifclass || '', 'Vehicle › Type': a.assetType?.name || '',
+    'Vehicle › Groups': (a.groups || []).map(g => g.name).join(', '), 'Vehicle › Cost centre': a.costCentre?.name || '', 'Vehicle › State': a.state || '',
+    'Vehicle › Device': (a.devices || []).map(d => `${d.name} (${d.deviceType?.name || ''})`).join(', '),
+    'Gate › Name': p.gate, 'Gate › Tariff plaza': scheduleMatch(p.gate || '')?.plaza || '',
+    'Trip › Start': fmtDT(t?.s), 'Trip › From': t?.start?.address || '', 'Trip › End': fmtDT(t?.e), 'Trip › To': t?.end?.address || '',
+    'Trip › Distance (km)': t?.stats?.distance, 'Trip › Drive time': t ? fmtDur(t.stats?.driveTime) : '', 'Trip › Idle time': t ? fmtDur(t.stats?.idleTime) : '',
+    'Trip › Duration': t ? fmtDur((t.e - t.s) / 1000) : '', 'Trip › Max speed': t?.maxes?.speed, 'Trip › Score': t?.rating?.score,
+    'Trip › Start odometer': t?.start?.odometer, 'Trip › End odometer': t?.end?.odometer, 'Trip › Type': t?.tripType || '',
+  };
+  Object.entries(a.fields || {}).forEach(([k, v]) => r['Vehicle info › ' + k] = v);
+  const tel = flatObj(p.tel?.telemetry, '', {});
+  Object.entries(tel).forEach(([k, v]) => r['Telemetry › ' + k] = v);
+  Object.entries(p.tel?.io || {}).forEach(([k, v]) => r['I/O › ' + (v?.name || k)] = v?.text ?? v?.value);
+  Object.entries(p.tel?.counters || {}).forEach(([k, v]) => r['Counters › ' + k] = v);
+  return r;
+}
+function buildColumns() {
+  const seen = new Set(Object.keys(reportRow(S.results.passes[0] || { assetId: '', date: new Date(), also: [] })));
+  S.results.rows = S.results.passes.map(p => { const r = reportRow(p); Object.keys(r).forEach(k => seen.add(k)); return r; });
+  S.cols = [...seen];
+  let saved = null; try { saved = JSON.parse(localStorage.getItem(COLKEY)); } catch {}
+  S.colSel = new Set((saved || DEFAULT_COLS).filter(c => S.cols.includes(c)));
+  renderColPicker();
+}
+function renderColPicker() {
+  const f = $('colFilter').value.toLowerCase();
+  const groups = {};
+  S.cols.filter(c => !f || c.toLowerCase().includes(f)).forEach(c => (groups[c.split(' › ')[0]] ||= []).push(c));
+  $('colList').innerHTML = Object.entries(groups).map(([g, cs]) =>
+    `<div style="margin:6px 0 2px;font-weight:700;font-size:12px;color:var(--blue)">${esc(g)}</div><div class="assets" style="max-height:none;border:none;padding:0">` +
+    cs.map(c => `<label><input type="checkbox" ${S.colSel.has(c) ? 'checked' : ''} data-col="${esc(c)}" onchange="toggleCol(this)"> ${esc(c.split(' › ').slice(1).join(' › '))}</label>`).join('') + `</div>`).join('');
+  $('colCount').textContent = `(${S.colSel.size} of ${S.cols.length} selected)`;
+}
+function toggleCol(cb) { cb.checked ? S.colSel.add(cb.dataset.col) : S.colSel.delete(cb.dataset.col); saveCols(); if ($('view').value === 'custom') renderResults(); $('colCount').textContent = `(${S.colSel.size} of ${S.cols.length} selected)`; }
+function setCols(which) {
+  S.colSel = new Set(which === 'all' ? S.cols : which === 'none' ? [] : DEFAULT_COLS.filter(c => S.cols.includes(c)));
+  saveCols(); renderColPicker(); if ($('view').value === 'custom') renderResults();
+}
+function saveCols() { try { localStorage.setItem(COLKEY, JSON.stringify(S.cols.filter(c => S.colSel.has(c)))); } catch {} }
+const selectedCols = () => S.cols.filter(c => S.colSel.has(c));
+
+function renderResults() {
+  const { passes, ids } = S.results;
+  $('colPicker').classList.toggle('hide', $('view').value !== 'custom');
+  const total = sumCost(passes), miss = unpriced(passes);
+  const vehiclesWith = new Set(passes.map(p => p.assetId)).size;
+  $('summary').innerHTML = `
+    <div><b>${passes.length}</b>toll passes</div>
+    <div><b>${rand(total)}</b>total cost</div>
+    <div><b>${vehiclesWith} / ${ids.length}</b>vehicles through a gate</div>
+    <div><b style="color:${miss ? 'var(--warn)' : 'var(--ok)'}">${miss}</b>passes without a price</div>`;
+  const v = $('view').value;
+  let html;
+  if (v === 'trips') {
+    const rows = tripRows(passes);
+    html = `<table><thead><tr><th>Vehicle</th><th>Trip start</th><th>From</th><th>Trip end</th><th>To</th><th class="num">km</th><th class="num">Drive time</th><th>Toll gates</th><th class="num">Toll cost</th></tr></thead><tbody>` +
+      rows.map(r => { const t = r.trip; return `<tr><td>${esc(r.asset)}</td><td>${t ? fmtDT(t.s) : '<span class="pill warn">no trip</span>'}</td><td style="white-space:normal;min-width:160px">${esc(t?.start?.address || '')}</td><td>${fmtDT(t?.e)}</td><td style="white-space:normal;min-width:160px">${esc(t?.end?.address || '')}</td><td class="num">${t?.stats?.distance != null ? t.stats.distance.toFixed(1) : ''}</td><td class="num">${t ? fmtDur(t.stats?.driveTime) : ''}</td><td style="white-space:normal">${r.passes.map(p => esc(p.gate) + ' <span class="hint">' + p.date.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }) + '</span>').join('<br>')}</td><td class="num">${rand(sumCost(r.passes))}</td></tr>`; }).join('') +
+      `</tbody><tfoot><tr><td colspan="5">${rows.length} trips</td><td class="num">${rows.reduce((s, r) => s + (r.trip?.stats?.distance || 0), 0).toFixed(1)}</td><td></td><td></td><td class="num">${rand(total)}</td></tr></tfoot></table>`;
+  } else if (v === 'custom') {
+    const cols = selectedCols();
+    html = cols.length ? `<table><thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>` +
+      S.results.rows.map(r => `<tr>${cols.map(c => `<td>${esc(r[c] ?? '')}</td>`).join('')}</tr>`).join('') + `</tbody></table>`
+      : '<div class="hint" style="padding:14px">Pick columns above.</div>';
+  } else if (v === 'passes') {
+    html = `<table><thead><tr><th>Date / time</th><th>Vehicle</th><th>Class</th><th>Toll gate</th><th>Location</th><th class="num">Cost</th></tr></thead><tbody>` +
+      passes.map(p => `<tr><td>${p.date.toLocaleString('en-ZA')}</td><td>${esc(p.asset)}</td><td>${p.cls ? p.cls.replace('class', 'Class ') + (p.assumed ? ' <span class="pill warn">assumed</span>' : '') : '<span class="pill warn">none</span>'}</td><td>${esc(p.gate)}${p.alsoNames ? ` <span class="pill" title="Also entered: ${esc(p.alsoNames)}">+${p.also.length} overlapping</span>` : ''}</td><td>${esc(p.loc?.address || '')}</td><td class="num">${p.cost == null ? '<span class="pill warn">no price</span>' : rand(p.cost)}</td></tr>`).join('') +
+      `</tbody><tfoot><tr><td colspan="5">Total</td><td class="num">${rand(total)}</td></tr></tfoot></table>`;
+  } else if (v === 'vehicle') {
+    const rows = [...groupBy(passes, 'asset')].sort((a, b) => sumCost(b[1]) - sumCost(a[1]));
+    html = `<table><thead><tr><th>Vehicle</th><th>Class</th><th class="num">Passes</th><th class="num">Unpriced</th><th>Gates</th><th class="num">Cost</th></tr></thead><tbody>` +
+      rows.map(([name, ps]) => `<tr><td>${esc(name)}</td><td>${ps[0].cls ? ps[0].cls.replace('class', 'Class ') + (ps[0].assumed ? ' <span class="pill warn">assumed</span>' : '') : '<span class="pill warn">none</span>'}</td><td class="num">${ps.length}</td><td class="num">${unpriced(ps) || ''}</td><td>${esc([...new Set(ps.map(p => p.gate))].join(', '))}</td><td class="num">${rand(sumCost(ps))}</td></tr>`).join('') +
+      `</tbody><tfoot><tr><td colspan="2">Total</td><td class="num">${passes.length}</td><td class="num">${miss || ''}</td><td></td><td class="num">${rand(total)}</td></tr></tfoot></table>`;
+  } else {
+    const rows = [...groupBy(passes, 'gate')].sort((a, b) => b[1].length - a[1].length);
+    html = `<table><thead><tr><th>Toll gate</th><th class="num">Passes</th><th class="num">Vehicles</th><th class="num">Unpriced</th><th class="num">Cost</th></tr></thead><tbody>` +
+      rows.map(([name, ps]) => `<tr><td>${esc(name)}</td><td class="num">${ps.length}</td><td class="num">${new Set(ps.map(p => p.assetId)).size}</td><td class="num">${unpriced(ps) || ''}</td><td class="num">${rand(sumCost(ps))}</td></tr>`).join('') +
+      `</tbody><tfoot><tr><td>Total</td><td class="num">${passes.length}</td><td></td><td class="num">${miss || ''}</td><td class="num">${rand(total)}</td></tr></tfoot></table>`;
+  }
+  $('resultTable').innerHTML = passes.length ? html : '<div class="hint" style="padding:14px">No toll gate entries in this period.</div>';
+}
+
+// Table model for the current view, shared by Excel / CSV / PDF
+function tripsTable() {
+  const rows = tripRows(S.results.passes);
+  return { title: 'Trips via toll', head: ['Vehicle', 'Class', 'Trip start', 'From', 'Trip end', 'To', 'Distance (km)', 'Drive time', 'Toll gates', 'Toll cost (R)'],
+    rows: rows.map(r => [r.asset, r.cls ? r.cls.replace('class', 'Class ') + (r.assumed ? ' (assumed)' : '') : '', fmtDT(r.trip?.s), r.trip?.start?.address || '', fmtDT(r.trip?.e), r.trip?.end?.address || '',
+      r.trip?.stats?.distance != null ? +r.trip.stats.distance.toFixed(1) : '', r.trip ? fmtDur(r.trip.stats?.driveTime) : '',
+      r.passes.map(p => `${p.gate} (${p.date.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })})`).join('; '), +sumCost(r.passes).toFixed(2)]),
+    foot: ['Total', '', '', '', '', '', +rows.reduce((s, r) => s + (r.trip?.stats?.distance || 0), 0).toFixed(1), '', `${S.results.passes.length} passes`, +sumCost(S.results.passes).toFixed(2)] };
+}
+function customTable() {
+  const cols = selectedCols();
+  return { title: 'Custom report', head: cols, rows: S.results.rows.map(r => cols.map(c => r[c] ?? '')), foot: null };
+}
+const currentTable = () => $('view').value === 'custom' ? customTable() : tripsTable();
+// File names list the selected vehicles, e.g. "Toll trips - 14 Ton F187, 14 Ton F188 - 2026-09-23 to 2026-09-23"
+function vehicleList() {
+  const names = S.results.ids.map(id => S.assets.find(a => a.id === id)?.name || id).map(n => n.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim());
+  let out = '';
+  for (let i = 0; i < names.length; i++) {
+    const next = out ? out + ', ' + names[i] : names[i];
+    if (next.length > 150) return `${out} +${names.length - i} more`;
+    out = next;
+  }
+  return out;
+}
+const fileBase = (kind = $('view').value === 'custom' ? 'Toll custom report' : 'Toll trips') =>
+  `${kind} - ${vehicleList()} - ${S.results.from}${S.results.to !== S.results.from ? ' to ' + S.results.to : ''}`;
+
+function exportXlsx() {
+  const wb = XLSX.utils.book_new();
+  [tripsTable(), customTable()].forEach(t => {
+    if (!t.head.length) return;
+    const ws = XLSX.utils.aoa_to_sheet([t.head, ...t.rows, ...(t.foot ? [t.foot] : [])]);
+    ws['!cols'] = t.head.map((h, i) => ({ wch: Math.min(50, Math.max(h.length, ...t.rows.slice(0, 200).map(r => String(r[i] ?? '').length)) + 2) }));
+    XLSX.utils.book_append_sheet(wb, ws, t.title);
+  });
+  XLSX.writeFile(wb, fileBase('Toll report') + '.xlsx');
+}
+function exportCsv() {
+  const t = currentTable();
+  if (!t.head.length) return alert('Pick some columns first.');
+  const cell = v => { const s = String(v ?? ''); return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const csv = '\ufeff' + [t.head, ...t.rows, ...(t.foot ? [t.foot] : [])].map(r => r.map(cell).join(',')).join('\r\n');
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })), download: fileBase() + '.csv' });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+function exportPdf() {
+  const t = currentTable();
+  if (!t.head.length) return alert('Pick some columns first.');
+  if (!window.jspdf) return alert('PDF library did not load (check internet connection).');
+  const doc = new jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  doc.setFillColor(255, 255, 255); doc.rect(0, 0, W, 18, 'F');
+  doc.setFillColor(229, 57, 53); doc.rect(0, 18, W, 0.8, 'F');
+  doc.setTextColor(33); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+  doc.text(`Toll Tracker — ${t.title}`, 10, 11.5);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.setTextColor(117); doc.text(`${S.clientName}  ·  ${S.results.from} to ${S.results.to}`, W - 10, 11.5, { align: 'right' });
+  doc.setTextColor(51); doc.setFontSize(9);
+  const ps = S.results.passes;
+  doc.text(`${ps.length} toll passes  ·  ${new Set(ps.map(p => p.assetId)).size} vehicles  ·  total ${rand(sumCost(ps))}  ·  ${unpriced(ps)} unpriced`, 10, 26);
+  const money = new Set(t.head.map((h, i) => /\(R\)/.test(h) ? i : -1));
+  const fmt = r => r.map((v, i) => money.has(i) && typeof v === 'number' ? rand(v) : String(v ?? ''));
+  doc.autoTable({
+    startY: 30, head: [t.head], body: t.rows.map(fmt), foot: t.foot ? [fmt(t.foot)] : undefined,
+    styles: { fontSize: t.head.length > 12 ? 6 : 7.5, cellPadding: 1.5, overflow: 'linebreak', textColor: 51 },
+    headStyles: { fillColor: [245, 245, 245], textColor: [97, 97, 97], fontStyle: 'bold', lineColor: [224, 224, 224], lineWidth: 0.1 }, footStyles: { fillColor: [250, 250, 250], textColor: [33, 33, 33], fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [250, 250, 250] }, margin: { left: 10, right: 10 },
+    didDrawPage: d => { doc.setFontSize(7); doc.setTextColor(120); doc.text(`Generated ${new Date().toLocaleString('en-ZA')}  ·  page ${d.pageNumber}`, W - 10, doc.internal.pageSize.getHeight() - 5, { align: 'right' }); },
+  });
+  doc.save(fileBase() + '.pdf');
+}
+
+// ── Gates tab ────────────────────────────────────────
+function renderGates() {
+  $('gateTable').innerHTML = `<table><thead><tr><th>Toll gate</th><th class="num">Lat</th><th class="num">Lon</th><th>Map</th><th>Modified</th></tr></thead><tbody>` +
+    S.gates.map(g => `<tr><td>${esc(g.name)}</td><td class="num">${g.lat?.toFixed(5) ?? ''}</td><td class="num">${g.lon?.toFixed(5) ?? ''}</td><td>${g.lat ? `<a href="https://www.google.com/maps?q=${g.lat},${g.lon}" target="_blank" rel="noopener">open</a>` : ''}</td><td>${esc(g.modified || '')}</td></tr>`).join('') +
+    `</tbody></table><div class="hint" style="padding:8px">${S.gates.length} gates</div>`;
+}
+
+// ── Tariffs ──────────────────────────────────────────
+const TKEY = 'toll_tariffs_v1';
+function getTariffs() { try { return JSON.parse(localStorage.getItem(TKEY)) || {}; } catch { return {}; } }
+// Built-in schedule: Toll Road Tariffs effective 1 March 2026 (SANRAL Gazette 54087/54088,
+// N3TC, Bakwena, TRAC), as published by Foresight Publications. [match, plaza, c1, c2, c3, c4, note]
+// Patterns are tried in order against the geofence name (upper-cased), so specific ramps come first.
+const SCHEDULE = {
+  name: 'Toll tariffs effective 1 March 2026',
+  source: 'https://www.foresightpublications.co.za/TollFees2026.pdf',
+  rows: [
+    [/BAOBAB|BOABAB/, 'Baobab main line', 61.5, 168, 231, 278],
+    [/CAPRICORN/, 'Capricorn main line', 63.5, 175, 205, 256],
+    [/SEBITELA|SEBETIELA/, 'Sebetiela ramp', 24.5, 46, 58, 77],
+    [/NYL.*(LOCAL|RAMP)/, 'Nyl ramp', 24.5, 46, 54, 69],
+    [/NYL/, 'Nyl main line', 79.5, 149, 180, 241],
+    [/KRANSKOP.*(REMOTE|RAMP)/, 'Kranskop ramp', 17, 46, 54, 81],
+    [/KRANSKOP/, 'Kranskop main line', 61.5, 157, 210, 257],
+    [/MAUBANE/, 'Maubane ramp', 33, 88, 97, 112],
+    [/CAROUSEL/, 'Carousel main line', 75, 202, 224, 258],
+    [/HAMMANSKRAAL|HAMANSKRAAL/, 'Hammanskraal ramp', 35, 120, 130, 150],
+    [/MURRAYHILL/, 'Murrayhill ramp', 15, 38, 45, 52],
+    [/WALL?MANN?S?T?HAL|WALLMANNSTAHL/, 'Wallmansthal ramp', 7.5, 19, 22.5, 26],
+    [/PUMULANI|PUMALANI/, 'Pumulani main line', 16.5, 41, 47, 57],
+    [/ZAMBESI/, 'Zambesi ramp', 15, 38, 44, 53],
+    [/STORMVO/, 'Stormvoël ramp', 12.5, 31, 36, 44],
+    [/GRASMERE.*(M\/?LINE|MAIN)/, 'Grasmere main line', 27.5, 82, 96, 126],
+    [/GRASMERE.*(\bN\b|NORTH)/, 'Grasmere N ramp', 14, 41, 48, 63],
+    [/GRASMERE/, 'Grasmere S ramp', 14, 41, 48, 63],
+    [/VAAL/, 'Vaal main line', 91.5, 172, 207, 275],
+    [/VERKEERDEVLEI/, 'Verkeerdevlei main line', 78.5, 157, 236, 331],
+    [/HUGUENOT/, 'Huguenot main line', 54.5, 151, 236, 383],
+    [/MTUNZINI.*(M\/?LINE|MAIN)/, 'Mtunzini main line', 63.5, 122, 146, 217],
+    [/MTUNZINI.*(\bNN\b|\bN\b|NORTH)/, 'Mtunzini N ramp', 11.5, 23, 27, 45],
+    [/MTUNZINI.*(\bSB\b|\bS\b|SOUTH)/, 'Mtunzini S ramp', 53, 99, 119, 172],
+    [/DOKODWENI/, 'Dokodweni ramp', 27, 53, 62, 84],
+    [/MANDINI/, 'Mandini ramp', 10, 19, 23, 31],
+    [/MVOTI/, 'Mvoti main line', 18.5, 52, 70, 104],
+    [/KING SHAKA/, 'King Shaka Airport ramp', 8.5, 17, 26, 34],
+    [/(TONGAAT|OTHONGATHI).*(MAIN|M\/?LINE)/, 'Othongathi main line', 15.5, 32, 42, 62],
+    [/TONGAAT|OTHONGATHI/, 'Othongathi ramp', 7.5, 17, 21, 31],
+    [/UMTENTWENI/, 'Umtentweni ramp', 17.5, 31, 42, 69],
+    [/IZOTSHA/, 'Izotsha ramp', 12.5, 23, 31, 54],
+    [/ORIBI.*(MAIN|M\/?LINE)/, 'Oribi main line', 41, 73, 100, 162],
+    [/ORIBI.*(\bN\b|NORTH)/, 'Oribi N ramp', 22, 38, 54, 100],
+    [/ORIBI.*(\bS\b|SOUTH)/, 'Oribi S ramp', 18.5, 34, 46, 73],
+    [/ORIBI.*LOCAL/, 'Oribi main line', 41, 73, 100, 162, 'Check: "local" assumed to be the main line plaza'],
+    [/ORIBI/, 'Oribi S ramp', 18.5, 34, 46, 73, 'Check: remote ramp assumed to be the S ramp'],
+    [/TSITSIKAMA/, 'Tsitsikama', 73, 183, 438, 619],
+    [/DE HOEK/, 'De Hoek main line', 67, 105, 160, 230],
+    [/WILGE|BEAUFORT WEST/, 'Wilge main line', 94, 161, 215, 304],
+    [/TUGELA.*EAST/, 'Tugela East ramp', 62, 102, 152, 211],
+    [/BERGVILLE/, 'Bergville ramp', 30, 35, 65, 100],
+    [/TUGELA/, 'Tugela main line', 100, 165, 260, 359],
+    [/TREVERTON/, 'Treverton ramp', 21, 51, 72, 97],
+    [/MOOI.*(MAIN|M\/?LINE)/, 'Mooi main line', 70, 171, 240, 324],
+    [/MOOI.*(NORTH|\bN\b)/, 'Mooi N ramp', 21, 51, 72, 97],
+    [/MOOI.*(SOUTH|\bS\b)/, 'Mooi S ramp', 49, 119, 168, 227],
+    [/MARI?ANN?HILL/, 'Mariannhill', 16.5, 30, 37, 57],
+    [/SWARTRUGGENS/, 'Swartruggens main line', 103, 258, 313, 368],
+    [/KROONDAL/, 'Kroondal ramp', 20, 48, 54, 64],
+    [/MARIKANA/, 'Marikana main line', 30, 72, 81, 96],
+    [/BUFFELSPOORT/, 'Buffelspoort ramp', 20, 48, 54, 64],
+    [/BRITS/, 'Brits main line', 20, 70, 77, 90],
+    [/K99|DOORNPOORT.*RAMP/, 'K99 ramp', 20, 50, 58, 70, 'Check: Doornpoort ramp assumed to be the K99 ramp'],
+    [/DOORNPOORT/, 'Doornpoort main line', 20, 50, 58, 70],
+    [/PELINDABA/, 'Pelindaba main line', 8, 15, 21, 27],
+    [/QUAGGA/, 'Quagga main line', 6.5, 11, 16, 21],
+    [/DONKERHOEK/, 'Donkerhoek ramp', 17, 24, 34, 66],
+    [/CULLINAN/, 'Cullinan ramp', 21, 34, 51, 86],
+    [/DIAM[AO]ND HILL/, 'Diamond Hill main line', 51, 70, 133, 220],
+    [/VALTAKI/, 'Valtaki ramp', 39, 55, 81, 183],
+    [/EKANDUSTRIA/, 'Ekandustria ramp', 31, 47, 65, 130],
+    [/MIDD?E?LE?BURG/, 'Middelburg main line', 84, 182, 277, 365],
+    [/MACHADO/, 'Machado main line', 126, 350, 510, 729],
+    [/NKOMAZI/, 'Nkomazi main line', 95, 193, 281, 405],
+    [/GOSFORTH.*(MAIN|M\/?LINE)/, 'Gosforth main line', 17, 46, 50, 69],
+    [/GOSFORTH.*WEST|GOSFORTH.*\bW\b/, 'Gosforth W ramp', 9.5, 19, 25, 33],
+    [/GOSFORTH.*EAST|GOSFORTH.*\bE\b/, 'Gosforth E ramp', 7.5, 29, 31, 42],
+    [/DALPARK/, 'Dalpark main line', 15.5, 32, 42, 58],
+    [/DENNE/, 'Denne ramp', 13.5, 27, 35, 46],
+    [/LEANDRA.*RAMP/, 'Leandra ramp', 30.5, 77, 113, 152],
+    [/LEANDRA/, 'Leandra main line', 50.5, 127, 190, 253],
+    [/TRICHARDT/, 'Trichardt main line', 25, 63, 96, 127],
+    [/ERMELO/, 'Ermelo main line', 45, 114, 170, 226],
+    [/BRANDFORT/, 'Brandfort main line', 62.5, 125, 188, 265],
+  ],
+};
+function scheduleMatch(gateName) {
+  const n = gateName.toUpperCase();
+  const r = SCHEDULE.rows.find(row => row[0].test(n));
+  return r && { plaza: r[1], prices: r.slice(2, 6), note: r[6] || '' };
+}
+
+function renderTariffs() {
+  const t = getTariffs();
+  $('scheduleInfo').innerHTML = `Lookup uses <b>${esc(SCHEDULE.name)}</b> (<a href="${SCHEDULE.source}" target="_blank" rel="noopener">source</a>). Gates it can't match stay blank for you to fill in. Rows marked <span class="pill warn">check</span> were matched on a guess.`;
+  $('tariffTable').innerHTML = `<table><thead><tr><th>Toll gate</th>${CLASSES.map(c => `<th class="num">${c.replace('class', 'Class ')}</th>`).join('')}<th>Source</th></tr></thead><tbody>` +
+    S.gates.map(g => {
+      const r = t[g.name] || {};
+      return `<tr><td>${esc(g.name)}</td>${CLASSES.map(c => `<td class="num"><input type="number" step="0.01" min="0" data-gate="${esc(g.name)}" data-cls="${c}" value="${r[c] ?? ''}" oninput="markManual(this)"></td>`).join('')}` +
+        `<td style="white-space:normal;min-width:180px" data-src="${esc(g.name)}">${esc(r.src || '')}${r.note ? ` <span class="pill warn" title="${esc(r.note)}">check</span>` : ''}</td></tr>`;
+    }).join('') + `</tbody></table>`;
+}
+function markManual(input) {
+  const cell = $('tariffTable').querySelector(`[data-src="${CSS.escape(input.dataset.gate)}"]`);
+  if (cell) { cell.textContent = 'Manual'; cell.dataset.manual = '1'; }
+}
+function readTariffTable() {
+  const t = getTariffs();
+  $('tariffTable').querySelectorAll('input').forEach(i => { (t[i.dataset.gate] ||= {})[i.dataset.cls] = i.value; });
+  $('tariffTable').querySelectorAll('[data-manual]').forEach(td => { const r = t[td.dataset.src]; r.src = 'Manual'; delete r.note; });
+  return t;
+}
+function lookupTariffs(overwrite) {
+  const t = readTariffTable(); let filled = 0, unmatched = [];
+  S.gates.forEach(g => {
+    const m = scheduleMatch(g.name);
+    if (!m) { unmatched.push(g.name); return; }
+    const r = (t[g.name] ||= {});
+    if (!overwrite && CLASSES.some(c => r[c] !== '' && r[c] != null)) return;
+    CLASSES.forEach((c, i) => r[c] = String(m.prices[i]));
+    r.src = `${m.plaza} (${SCHEDULE.name.replace('Toll tariffs effective ', '')})`;
+    if (m.note) r.note = m.note; else delete r.note;
+    filled++;
+  });
+  try { localStorage.setItem(TKEY, JSON.stringify(t)); } catch {}
+  renderTariffs();
+  setStatus('tariffStatus', `Looked up ${filled} gates.` + (unmatched.length ? ` Not in schedule, fill in manually: ${unmatched.slice(0, 10).join(', ')}${unmatched.length > 10 ? ` and ${unmatched.length - 10} more (is the right zone group selected?)` : ''}` : ''), unmatched.length ? '' : 'ok');
+}
+async function lookupFromUrl() {
+  const saved = (() => { try { return localStorage.getItem(TKEY + '_url') || ''; } catch { return ''; } })();
+  const url = prompt('CSV link with columns gate,class1,class2,class3,class4 (e.g. Google Sheets › File › Share › Publish to web › CSV):', saved);
+  if (!url) return;
+  try {
+    const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status);
+    try { localStorage.setItem(TKEY + '_url', url); } catch {}
+    applyTariffCsv(await r.text(), 'Link ' + new Date().toLocaleDateString('en-ZA'));
+  } catch (e) { setStatus('tariffStatus', 'Could not load link: ' + e.message + ' (the site must allow cross-origin access; published Google Sheets do)', 'err'); }
+}
+function saveTariffs() {
+  try { localStorage.setItem(TKEY, JSON.stringify(readTariffTable())); setStatus('tariffStatus', 'Saved. Re-run the report to apply.', 'ok'); }
+  catch (e) { setStatus('tariffStatus', 'Could not save in this browser: ' + e.message, 'err'); }
+}
+function exportTariffs() {
+  const t = readTariffTable();
+  const csv = ['gate,' + CLASSES.join(',')].concat(S.gates.map(g => `"${g.name.replace(/"/g, '""')}",` + CLASSES.map(c => t[g.name]?.[c] ?? '').join(','))).join('\n');
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: 'toll_tariffs.csv' });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+function importTariffs(input) {
+  const f = input.files[0]; if (!f) return;
+  f.text().then(text => applyTariffCsv(text, 'CSV ' + f.name));
+  input.value = '';
+}
+function applyTariffCsv(text, src) {
+  const t = getTariffs(); let n = 0;
+  text.split(/\r?\n/).slice(1).forEach(line => {
+    const cols = line.match(/("([^"]|"")*"|[^,]*)(,|$)/g)?.map(c => c.replace(/,$/, '').replace(/^"|"$/g, '').replace(/""/g, '"')) || [];
+    if (!cols[0]) return;
+    t[cols[0].trim()] = { ...Object.fromEntries(CLASSES.map((c, i) => [c, (cols[i + 1] || '').trim().replace(/^R\s*/i, '').replace(',', '.')])), src };
+    n++;
+  });
+  try { localStorage.setItem(TKEY, JSON.stringify(t)); } catch {}
+  renderTariffs(); setStatus('tariffStatus', `Imported ${n} gates from ${src}.`, 'ok');
+}
+
+function tab(btn) {
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b === btn));
+  document.querySelectorAll('[data-pane]').forEach(p => p.classList.toggle('hide', p.dataset.pane !== btn.dataset.tab));
+}
+$('dedupMin').textContent = DEDUP_MIN;
+['apiKey', 'password'].forEach(id => $(id).addEventListener('keydown', e => e.key === 'Enter' && connect()));
+// Optional address parameters for the Fleet external tab: ?client=<uuid or name>&region=us1&auth=key
+(() => {
+  const q = new URLSearchParams(location.search);
+  if (q.get('client')) $('clientId').value = q.get('client');
+  if (q.get('region')) $('region').value = q.get('region');
+  if (q.get('auth') === 'key') { $('authMode').value = 'key'; authModeChanged(); }
+})();
+</script>
+</body>
+</html>
