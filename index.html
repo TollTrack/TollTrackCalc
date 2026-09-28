@@ -127,7 +127,6 @@ tfoot td{font-weight:500;background:#fafafa;color:#212121}
           <input id="assetFilter" placeholder="Filter…" oninput="renderAssets()" style="max-width:220px">
           <button class="sec" onclick="checkAll(true)">All</button>
           <button class="sec" onclick="checkAll(false)">None</button>
-          <label style="display:flex;gap:6px;align-items:center;margin:0;font-weight:400;color:var(--ink)"><input type="checkbox" id="onlyActive" checked onchange="renderAssets()" style="width:auto"> Active only</label>
           <span class="hint" id="assetCount" style="margin:0"></span>
         </div>
         <div class="assets" id="assetList" style="margin-top:8px"></div>
@@ -299,13 +298,16 @@ async function loadClient(client) {
   S.client = client; S.results = null;
   $('resultsCard').classList.add('hide'); selAssets.clear();
   setStatus('connStatus', 'Loading zone groups and vehicles…'); setStatus('runStatus', 'Loading client…');
-  const [groups, assets] = await Promise.all([
+  const [groups, assets, devices] = await Promise.all([
     apiAll('/entities/zonegroups', { owner: client }),
     apiAll('/entities/assets', { owner: client, sort: 'name' }),
+    apiAll('/entities/devices', { owner: client }),
   ]);
   S.groups = groups;
   S.clientName = S.clientList.find(c => c.id === client)?.name || assets[0]?.owner?.name || groups[0]?.owner?.name || client;
-  S.assets = assets.map(a => ({
+  // Only active vehicles with at least one active device; suspended and deleted ones are left out
+  const activeDev = new Set(devices.filter(d => d.state === 'active').map(d => d.id));
+  S.assets = assets.filter(a => a.state === 'active' && (a.devices || []).some(d => activeDev.has(d.id))).map(a => ({
     id: a.id, name: (a.name || '').trim(), state: a.state,
     cls: normClass(a.fields?.tolltarifclass), rawCls: a.fields?.tolltarifclass || '',
     group: (a.groups || []).map(g => g.name).join(', '), raw: a,
@@ -361,8 +363,8 @@ async function loadGates() {
 // ── Assets ───────────────────────────────────────────
 const selAssets = new Set();
 function renderAssets() {
-  const f = $('assetFilter').value.toLowerCase(), onlyActive = $('onlyActive').checked;
-  const list = S.assets.filter(a => (!onlyActive || a.state === 'active') && (!f || a.name.toLowerCase().includes(f) || a.group.toLowerCase().includes(f)));
+  const f = $('assetFilter').value.toLowerCase();
+  const list = S.assets.filter(a => (!f || a.name.toLowerCase().includes(f) || a.group.toLowerCase().includes(f)));
   const open = new Set([...$('assetList').querySelectorAll('.vgroup[open]')].map(d => d.dataset.g));
   const groups = new Map();
   list.forEach(a => { const g = a.raw?.groups?.[0]?.name || 'No group'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(a); });
