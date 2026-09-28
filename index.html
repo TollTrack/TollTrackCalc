@@ -162,7 +162,6 @@ tfoot td{font-weight:500;background:#fafafa;color:#212121}
           <div id="colList"></div>
         </details>
         <div class="tbl-wrap" id="resultTable"></div>
-        <div class="hint">A pass is a zone <b>enter</b> event on a gate in the selected group. Repeat entries on the same gate within <span id="dedupMin">10</span> minutes count once. Overlapping gate zones (under 1 km apart, entered within 3 minutes) count as one pass, priced at the main line. Cost uses the vehicle's <code>tolltarifclass</code> Information field and the Tariffs tab.</div>
       </section>
     </div>
 
@@ -874,7 +873,6 @@ function tab(btn) {
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b === btn));
   document.querySelectorAll('[data-pane]').forEach(p => p.classList.toggle('hide', p.dataset.pane !== btn.dataset.tab));
 }
-$('dedupMin').textContent = DEDUP_MIN;
 ['apiKey', 'password'].forEach(id => $(id).addEventListener('keydown', e => e.key === 'Enter' && connect()));
 // Optional address parameters for the Fleet external tab: ?client=<uuid or name>&region=us1&auth=key
 (() => {
