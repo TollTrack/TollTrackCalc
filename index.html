@@ -356,7 +356,7 @@ async function loadGates() {
     .map(z => ({ id: z.id, name: z.name, lat: z.center?.y, lon: z.center?.x, modified: z.modifiedDate }))
     .sort((a, b) => a.name.localeCompare(b.name));
   renderGates(); renderTariffs();
-  if (!Object.keys(getTariffs()).length) lookupTariffs(false);
+  applySchedule();
 }
 
 // ── Assets ───────────────────────────────────────────
@@ -698,6 +698,7 @@ function getTariffs() { try { return JSON.parse(localStorage.getItem(TKEY)) || {
 // Patterns are tried in order against the geofence name (upper-cased), so specific ramps come first.
 const SCHEDULE = {
   name: 'Toll tariffs effective 1 March 2026',
+  version: '2026-03-01',   // bump when the rows below are replaced with a new year's tariffs
   source: 'https://www.foresightpublications.co.za/TollFees2026.pdf',
   rows: [
     [/BAOBAB|BOABAB/, 'Baobab main line', 61.5, 168, 231, 278],
@@ -802,6 +803,19 @@ function readTariffTable() {
   $('tariffTable').querySelectorAll('input').forEach(i => { (t[i.dataset.gate] ||= {})[i.dataset.cls] = i.value; });
   $('tariffTable').querySelectorAll('[data-manual]').forEach(td => { const r = t[td.dataset.src]; r.src = 'Manual'; delete r.note; });
   return t;
+}
+// When the built-in schedule is newer than what this browser last applied, refresh every gate the
+// schedule covers (hand-entered prices included); gates the schedule can't match keep their saved prices.
+function applySchedule() {
+  const VKEY = TKEY + '_ver';
+  let seen = null; try { seen = localStorage.getItem(VKEY); } catch {}
+  const empty = !Object.keys(getTariffs()).length;
+  if (empty) lookupTariffs(false);
+  else if (seen && seen !== SCHEDULE.version) {
+    lookupTariffs(true);
+    setStatus('tariffStatus', `Tariffs updated to ${SCHEDULE.name}. Gates not in the new schedule kept their saved prices.`, 'ok');
+  }
+  try { localStorage.setItem(VKEY, SCHEDULE.version); } catch {}
 }
 function lookupTariffs(overwrite) {
   const t = readTariffTable(); let filled = 0, unmatched = [];
