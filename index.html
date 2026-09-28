@@ -172,8 +172,6 @@ tfoot td{font-weight:500;background:#fafafa;color:#212121}
         <h2>Tariffs (Rand per pass) <span class="grpTag"></span></h2>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
           <button onclick="saveTariffs()">Save</button>
-          <button class="sec" onclick="lookupTariffs(false)" title="Fill empty cells from the built-in tariff schedule">Lookup (fill blanks)</button>
-          <button class="sec" onclick="lookupTariffs(true)" title="Overwrite all matched gates from the built-in tariff schedule">Lookup (overwrite)</button>
           <button class="sec" onclick="lookupFromUrl()" title="Load a newer schedule from a CSV link, e.g. a published Google Sheet">Update from link…</button>
           <button class="sec" onclick="exportTariffs()">Export CSV</button>
           <button class="sec" onclick="document.getElementById('tariffFile').click()">Import CSV</button>
@@ -787,7 +785,7 @@ function scheduleMatch(gateName) {
 
 function renderTariffs() {
   const t = getTariffs();
-  $('scheduleInfo').innerHTML = `Lookup uses <b>${esc(SCHEDULE.name)}</b> (<a href="${SCHEDULE.source}" target="_blank" rel="noopener">source</a>). Gates it can't match stay blank for you to fill in. Rows marked <span class="pill warn">check</span> were matched on a guess.`;
+  $('scheduleInfo').innerHTML = `Prices are pre-filled from <b>${esc(SCHEDULE.name)}</b> (<a href="${SCHEDULE.source}" target="_blank" rel="noopener">source</a>). Gates it can't match stay blank for you to fill in. Rows marked <span class="pill warn">check</span> were matched on a guess.`;
   $('tariffTable').innerHTML = `<table><thead><tr><th>Toll gate</th>${CLASSES.map(c => `<th class="num">${c.replace('class', 'Class ')}</th>`).join('')}<th>Source</th></tr></thead><tbody>` +
     S.gates.map(g => {
       const r = t[g.name] || {};
