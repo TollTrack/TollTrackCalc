@@ -812,7 +812,7 @@ function editSource(ev) {
 function renderTariffs() {
   const t = getTariffs();
   let last = ''; try { last = localStorage.getItem(TKEY + '_last') || ''; } catch {}
-  $('scheduleInfo').innerHTML = (last ? `Prices last updated from <b>${esc(last)}</b>; gates it didn't cover use ${esc(SCHEDULE.name)}` : `Prices are pre-filled from <b>${esc(SCHEDULE.name)}</b>`) + ` (<a href="${esc(scheduleSource())}" onclick="return editSource(event)" title="Click to open or change the source link">source</a>). Gates it can't match stay blank for you to fill in. Rows marked <span class="pill warn">check</span> were matched on a guess.`;
+  $('scheduleInfo').innerHTML = (last ? `Prices last updated from <b>${esc(last)}</b>; gates it didn't cover use ${esc(SCHEDULE.name)}` : `Prices are pre-filled from <b>${esc(SCHEDULE.name)}</b>`) + ` (<a href="${esc(scheduleSource())}" onclick="return editSource(event)" title="Click to open or change the source link">source</a>). Please verify prices in rows marked <span class="pill warn">check</span>.`;
   $('tariffTable').innerHTML = `<table><thead><tr><th>Toll gate</th>${CLASSES.map(c => `<th class="num">${c.replace('class', 'Class ')}</th>`).join('')}<th>Source</th></tr></thead><tbody>` +
     S.gates.map(g => {
       const r = t[g.name] || {};
