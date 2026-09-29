@@ -37,6 +37,7 @@ button:disabled{opacity:.5;cursor:default}
 .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:14px;flex-wrap:wrap}
 .tabs button{background:none;color:var(--label);border:none;border-bottom:2px solid transparent;border-radius:0;margin-bottom:-1px;padding:9px 14px}
 .tabs button:hover{background:none;color:#212121}
+.tabs button.logout{margin-left:auto}
 .tabs button.on{color:var(--blue);border-bottom-color:var(--blue)}
 .hide{display:none!important}
 .status{font-size:13px;margin-top:8px;min-height:18px}
@@ -107,6 +108,7 @@ tfoot td{font-weight:500;background:#fafafa;color:#212121}
       <button class="on" data-tab="report" onclick="tab(this)">Toll Report</button>
       <button data-tab="tariffs" onclick="tab(this)">Tariffs</button>
       <button data-tab="gates" onclick="tab(this)">Toll Gates</button>
+      <button class="logout" onclick="logout()" title="Sign out and return to the Connect screen">Log out</button>
     </div>
 
     <!-- Report -->
@@ -170,7 +172,7 @@ tfoot td{font-weight:500;background:#fafafa;color:#212121}
         <h2>Tariffs (Rand per pass) <span class="grpTag"></span></h2>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
           <button onclick="saveTariffs()">Save</button>
-          <button class="sec" onclick="lookupFromUrl()" title="Load a newer schedule from a CSV link, e.g. a published Google Sheet">Update from link…</button>
+          <button class="sec" onclick="refreshFromSource()" title="Download the latest tariffs from the source link (set it by clicking 'source' below)">Refresh</button>
           <button class="sec" onclick="exportTariffs()">Export CSV</button>
           <button class="sec" onclick="document.getElementById('tariffFile').click()">Import CSV</button>
           <input type="file" id="tariffFile" accept=".csv" class="hide" onchange="importTariffs(this)">
@@ -294,6 +296,15 @@ async function connect() {
   } finally { $('btnConnect').disabled = false; }
 }
 
+function logout() {
+  if (!confirm('Log out?')) return;
+  Object.assign(S, { key:'', token:'', refresh:'', client:'', clientName:'', clientList:[], groups:[], gates:[], assets:[], results:null });
+  $('apiKey').value = ''; $('password').value = ''; $('clientId').value = '';
+  $('app').classList.add('hide'); $('resultsCard').classList.add('hide');
+  $('connectCard').classList.remove('hide');
+  setStatus('connStatus', 'Logged out.', 'ok');
+}
+
 async function loadClient(client) {
   S.client = client; S.results = null;
   $('resultsCard').classList.add('hide'); selAssets.clear();
@@ -385,9 +396,14 @@ function checkAll(on) {
   $('assetList').querySelectorAll('.vgrid input').forEach(cb => { cb.checked = on; on ? selAssets.add(cb.value) : selAssets.delete(cb.value); });
   countAssets();
 }
+function unselectNoClass() {
+  S.assets.forEach(a => { if (!a.cls) selAssets.delete(a.id); });
+  $('assetList').querySelectorAll('.vgrid input').forEach(cb => { cb.checked = selAssets.has(cb.value); });
+  countAssets();
+}
 function countAssets() {
   const n = selAssets.size, noCls = S.assets.filter(a => selAssets.has(a.id) && !a.cls).length;
-  $('assetCount').textContent = `${n} selected` + (noCls ? ` · ${noCls} without toll class` : '');
+  $('assetCount').innerHTML = `${n} selected` + (noCls ? ` · <a href="#" onclick="unselectNoClass();return false" title="Click to unselect these vehicles">${noCls} without toll class</a>` : '');
   $('assetList').querySelectorAll('.vgroup').forEach(d => {
     const cbs = [...d.querySelectorAll('.vgrid input')], k = cbs.filter(c => c.checked).length, g = d.querySelector('.gchk');
     g.checked = k === cbs.length; g.indeterminate = k > 0 && k < cbs.length;
@@ -419,7 +435,9 @@ async function runReport() {
 
   const gateIds = new Map(S.gates.map(g => [g.id, g]));
   const jobs = [];
-  ids.forEach(id => { for (let t = start.getTime(); t < end.getTime(); t += 864e5) jobs.push({ id, s: new Date(t), e: new Date(Math.min(t + 864e5, end.getTime())) }); });
+  ids.forEach(id => { for (let t = start.getTime(); t < end.getTime(); t += 864e5) jobs.push({ id, s: new Date(t), e: new Date(Math.min(t + 864e5, end.getTime())) });
+  // Also fetch trips for the day before, so a trip that started before the range (e.g. overnight) is found
+  jobs.push({ id, s: new Date(start.getTime() - 864e5), e: new Date(start), tripsOnly: true }); });
 
   stopFlag = false; $('btnRun').disabled = true; $('btnStop').classList.remove('hide');
   const raw = [], trips = new Map(); let done = 0, errors = 0;
@@ -429,14 +447,14 @@ async function runReport() {
       try {
         const q = { start: j.s.toISOString(), end: j.e.toISOString() };
         const [items, tr] = await Promise.all([
-          apiAll(`/data/history/events/${j.id}`, q),
+          j.tripsOnly ? [] : apiAll(`/data/history/events/${j.id}`, q),
           apiAll(`/data/history/trips/${j.id}`, q).catch(e => { console.error('trips', j, e); return []; }),
         ]);
         items.forEach(ev => {
           const z = ev.details?.zone;
           if (ev.eventType === 'enter' && z && gateIds.has(z.id)) raw.push({ assetId: j.id, gateId: z.id, date: new Date(ev.eventDate), loc: ev.details?.telemetry?.location, tel: ev.details?.telemetry });
         });
-        tr.forEach(t => t.id && trips.set(t.id, { ...t, assetId: j.id, s: new Date(t.dateStart), e: new Date(t.dateEnd) }));
+        tr.forEach(t => t.id && trips.set(t.id, { ...t, assetId: j.id, s: new Date(t.dateStart), e: t.dateEnd ? new Date(t.dateEnd) : new Date() }));   // no end = trip still in progress
       } catch (e) { errors++; console.error(j, e); }
       done++;
       $('prog').style.width = (done / (done + jobs.length) * 100) + '%';
@@ -479,9 +497,15 @@ async function runReport() {
   });
   // Attach each pass to the trip it happened on (driving trips first, then any trip covering the time)
   const tripList = [...trips.values()];
+  // Allow a little slack: gate entries are often logged seconds before a trip officially starts or after it ends.
+  const SLACK = 5 * 6e4, gap = (t, d) => d < t.s ? t.s - d : d > t.e ? d - t.e : 0;
   passes.forEach(p => {
-    const cands = tripList.filter(t => t.assetId === p.assetId && t.s <= p.date && p.date <= t.e);
-    p.trip = cands.find(t => t.tripType === 'active') || cands[0] || null;
+    const cands = tripList.filter(t => t.assetId === p.assetId && gap(t, p.date) <= SLACK)
+      .sort((a, b) => gap(a, p.date) - gap(b, p.date) || (b.tripType === 'active') - (a.tripType === 'active'));
+    p.trip = cands[0] || null;
+    // No trip yet, but nothing has ended since this pass and it was in the last 24 h: the trip is still under way
+    // (KT1 only returns trips once they finish).
+    p.inProgress = !p.trip && Date.now() - p.date < 864e5 && !tripList.some(t => t.assetId === p.assetId && t.s > p.date);
   });
   passes.sort((a, b) => a.date - b.date);
   S.results = { passes, ids, from: $('dFrom').value, to: $('dTo').value };
@@ -506,7 +530,7 @@ function tripRows(passes) {
   const m = new Map();
   passes.forEach(p => {
     const k = p.trip ? p.trip.id : 'none:' + p.assetId + ':' + p.date.getTime();
-    if (!m.has(k)) m.set(k, { trip: p.trip, asset: p.asset, cls: p.cls, assumed: p.assumed, passes: [] });
+    if (!m.has(k)) m.set(k, { trip: p.trip, inProgress: p.inProgress, asset: p.asset, cls: p.cls, assumed: p.assumed, passes: [] });
     m.get(k).passes.push(p);
   });
   return [...m.values()].sort((a, b) => (a.trip?.s || a.passes[0].date) - (b.trip?.s || b.passes[0].date));
@@ -586,7 +610,7 @@ function renderResults() {
   if (v === 'trips') {
     const rows = tripRows(passes);
     html = `<table><thead><tr><th>Vehicle</th><th>Trip start</th><th>From</th><th>Trip end</th><th>To</th><th class="num">km</th><th class="num">Drive time</th><th>Toll gates</th><th class="num">Toll cost</th></tr></thead><tbody>` +
-      rows.map(r => { const t = r.trip; return `<tr><td>${esc(r.asset)}</td><td>${t ? fmtDT(t.s) : '<span class="pill warn">no trip</span>'}</td><td style="white-space:normal;min-width:160px">${esc(t?.start?.address || '')}</td><td>${fmtDT(t?.e)}</td><td style="white-space:normal;min-width:160px">${esc(t?.end?.address || '')}</td><td class="num">${t?.stats?.distance != null ? t.stats.distance.toFixed(1) : ''}</td><td class="num">${t ? fmtDur(t.stats?.driveTime) : ''}</td><td style="white-space:normal">${r.passes.map(p => esc(p.gate) + ' <span class="hint">' + p.date.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }) + '</span>').join('<br>')}</td><td class="num">${rand(sumCost(r.passes))}</td></tr>`; }).join('') +
+      rows.map(r => { const t = r.trip; return `<tr><td>${esc(r.asset)}</td><td>${t ? fmtDT(t.s) : r.inProgress ? '<span class="pill">trip in progress</span>' : '<span class="pill warn">no trip</span>'}</td><td style="white-space:normal;min-width:160px">${esc(t?.start?.address || '')}</td><td>${fmtDT(t?.e)}</td><td style="white-space:normal;min-width:160px">${esc(t?.end?.address || '')}</td><td class="num">${t?.stats?.distance != null ? t.stats.distance.toFixed(1) : ''}</td><td class="num">${t ? fmtDur(t.stats?.driveTime) : ''}</td><td style="white-space:normal">${r.passes.map(p => esc(p.gate) + ' <span class="hint">' + p.date.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }) + '</span>').join('<br>')}</td><td class="num">${rand(sumCost(r.passes))}</td></tr>`; }).join('') +
       `</tbody><tfoot><tr><td colspan="5">${rows.length} trips</td><td class="num">${rows.reduce((s, r) => s + (r.trip?.stats?.distance || 0), 0).toFixed(1)}</td><td></td><td></td><td class="num">${rand(total)}</td></tr></tfoot></table>`;
   } else if (v === 'custom') {
     const cols = selectedCols();
@@ -615,7 +639,7 @@ function renderResults() {
 function tripsTable() {
   const rows = tripRows(S.results.passes);
   return { title: 'Trips via toll', head: ['Vehicle', 'Class', 'Trip start', 'From', 'Trip end', 'To', 'Distance (km)', 'Drive time', 'Toll gates', 'Toll cost (R)'],
-    rows: rows.map(r => [r.asset, r.cls ? r.cls.replace('class', 'Class ') + (r.assumed ? ' (assumed)' : '') : '', fmtDT(r.trip?.s), r.trip?.start?.address || '', fmtDT(r.trip?.e), r.trip?.end?.address || '',
+    rows: rows.map(r => [r.asset, r.cls ? r.cls.replace('class', 'Class ') + (r.assumed ? ' (assumed)' : '') : '', r.trip ? fmtDT(r.trip.s) : r.inProgress ? 'Trip in progress' : 'No trip', r.trip?.start?.address || '', fmtDT(r.trip?.e), r.trip?.end?.address || '',
       r.trip?.stats?.distance != null ? +r.trip.stats.distance.toFixed(1) : '', r.trip ? fmtDur(r.trip.stats?.driveTime) : '',
       r.passes.map(p => `${p.gate} (${p.date.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })})`).join('; '), +sumCost(r.passes).toFixed(2)]),
     foot: ['Total', '', '', '', '', '', +rows.reduce((s, r) => s + (r.trip?.stats?.distance || 0), 0).toFixed(1), '', `${S.results.passes.length} passes`, +sumCost(S.results.passes).toFixed(2)] };
@@ -625,19 +649,9 @@ function customTable() {
   return { title: 'Custom report', head: cols, rows: S.results.rows.map(r => cols.map(c => r[c] ?? '')), foot: null };
 }
 const currentTable = () => $('view').value === 'custom' ? customTable() : tripsTable();
-// File names list the selected vehicles, e.g. "Toll trips - 14 Ton F187, 14 Ton F188 - 2026-09-23 to 2026-09-23"
-function vehicleList() {
-  const names = S.results.ids.map(id => S.assets.find(a => a.id === id)?.name || id).map(n => n.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim());
-  let out = '';
-  for (let i = 0; i < names.length; i++) {
-    const next = out ? out + ', ' + names[i] : names[i];
-    if (next.length > 150) return `${out} +${names.length - i} more`;
-    out = next;
-  }
-  return out;
-}
+// File names are the report type and date range, e.g. "Toll trips 2026-12-12 to 2026-12-13" or "Toll trips 2026-09-29" for a single day
 const fileBase = (kind = $('view').value === 'custom' ? 'Toll custom report' : 'Toll trips') =>
-  `${kind} - ${vehicleList()} - ${S.results.from}${S.results.to !== S.results.from ? ' to ' + S.results.to : ''}`;
+  `${kind} ${S.results.from}${S.results.to !== S.results.from ? ' to ' + S.results.to : ''}`;
 
 function exportXlsx() {
   const wb = XLSX.utils.book_new();
@@ -785,9 +799,23 @@ function scheduleMatch(gateName) {
   return r && { plaza: r[1], prices: r.slice(2, 6), note: r[6] || '' };
 }
 
+const SRC_KEY = TKEY + '_src';
+function scheduleSource() { try { return localStorage.getItem(SRC_KEY) || SCHEDULE.source; } catch { return SCHEDULE.source; } }
+function editSource(ev) {
+  ev.preventDefault();
+  const cur = scheduleSource();
+  const url = prompt('Tariff source link (OK opens it; clear the box to restore the default):', cur);
+  if (url === null) return false;
+  const next = url.trim() || SCHEDULE.source;
+  try { next === SCHEDULE.source ? localStorage.removeItem(SRC_KEY) : localStorage.setItem(SRC_KEY, next); } catch {}
+  if (next !== cur) { renderTariffs(); setStatus('tariffStatus', 'Source link updated.', 'ok'); }
+  if (/^https?:\/\//i.test(next)) window.open(next, '_blank', 'noopener');
+  return false;
+}
 function renderTariffs() {
   const t = getTariffs();
-  $('scheduleInfo').innerHTML = `Prices are pre-filled from <b>${esc(SCHEDULE.name)}</b> (<a href="${SCHEDULE.source}" target="_blank" rel="noopener">source</a>). Gates it can't match stay blank for you to fill in. Rows marked <span class="pill warn">check</span> were matched on a guess.`;
+  let last = ''; try { last = localStorage.getItem(TKEY + '_last') || ''; } catch {}
+  $('scheduleInfo').innerHTML = (last ? `Prices last updated from <b>${esc(last)}</b>; gates it didn't cover use ${esc(SCHEDULE.name)}` : `Prices are pre-filled from <b>${esc(SCHEDULE.name)}</b>`) + ` (<a href="${esc(scheduleSource())}" onclick="return editSource(event)" title="Click to open or change the source link">source</a>). Gates it can't match stay blank for you to fill in. Rows marked <span class="pill warn">check</span> were matched on a guess.`;
   $('tariffTable').innerHTML = `<table><thead><tr><th>Toll gate</th>${CLASSES.map(c => `<th class="num">${c.replace('class', 'Class ')}</th>`).join('')}<th>Source</th></tr></thead><tbody>` +
     S.gates.map(g => {
       const r = t[g.name] || {};
@@ -808,14 +836,15 @@ function readTariffTable() {
 // When the built-in schedule is newer than what this browser last applied, refresh every gate the
 // schedule covers (hand-entered prices included); gates the schedule can't match keep their saved prices.
 function applySchedule() {
+  if (!S.gates.length) return;   // nothing loaded yet; don't mark the schedule as applied
   const VKEY = TKEY + '_ver';
   let seen = null; try { seen = localStorage.getItem(VKEY); } catch {}
-  const empty = !Object.keys(getTariffs()).length;
-  if (empty) lookupTariffs(false);
-  else if (seen && seen !== SCHEDULE.version) {
+  const hasSaved = Object.keys(getTariffs()).length > 0;
+  if (hasSaved && seen !== SCHEDULE.version) {
+    // Saved prices from an older schedule (or from before versioning existed): refresh them.
     lookupTariffs(true);
     setStatus('tariffStatus', `Tariffs updated to ${SCHEDULE.name}. Gates not in the new schedule kept their saved prices.`, 'ok');
-  }
+  } else lookupTariffs(false);   // fill any gates that are still blank (e.g. a newly selected zone group)
   try { localStorage.setItem(VKEY, SCHEDULE.version); } catch {}
 }
 function lookupTariffs(overwrite) {
@@ -834,15 +863,14 @@ function lookupTariffs(overwrite) {
   renderTariffs();
   setStatus('tariffStatus', `Looked up ${filled} gates.` + (unmatched.length ? ` Not in schedule, fill in manually: ${unmatched.slice(0, 10).join(', ')}${unmatched.length > 10 ? ` and ${unmatched.length - 10} more (is the right zone group selected?)` : ''}` : ''), unmatched.length ? '' : 'ok');
 }
-async function lookupFromUrl() {
-  const saved = (() => { try { return localStorage.getItem(TKEY + '_url') || ''; } catch { return ''; } })();
-  const url = prompt('CSV link with columns gate,class1,class2,class3,class4 (e.g. Google Sheets › File › Share › Publish to web › CSV):', saved);
-  if (!url) return;
+async function refreshFromSource() {
+  const url = scheduleSource();
   try {
     const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status);
-    try { localStorage.setItem(TKEY + '_url', url); } catch {}
-    applyTariffCsv(await r.text(), 'Link ' + new Date().toLocaleDateString('en-ZA'));
-  } catch (e) { setStatus('tariffStatus', 'Could not load link: ' + e.message + ' (the site must allow cross-origin access; published Google Sheets do)', 'err'); }
+    const text = await r.text();
+    if (/^%PDF/.test(text) || !/^\s*"?gate"?\s*,/i.test(text)) throw new Error('the source is not a tariff CSV (first row must be gate,class1,class2,class3,class4)');
+    applyTariffCsv(text, 'Source ' + new Date().toLocaleDateString('en-ZA'));
+  } catch (e) { setStatus('tariffStatus', 'Could not refresh from source: ' + e.message + '. Click "source" to set a CSV link, e.g. a Google Sheet published to the web as CSV.', 'err'); }
 }
 function saveTariffs() {
   try { localStorage.setItem(TKEY, JSON.stringify(readTariffTable())); setStatus('tariffStatus', 'Saved. Re-run the report to apply.', 'ok'); }
@@ -868,6 +896,7 @@ function applyTariffCsv(text, src) {
     n++;
   });
   try { localStorage.setItem(TKEY, JSON.stringify(t)); } catch {}
+  try { localStorage.setItem(TKEY + '_last', src); } catch {}
   renderTariffs(); setStatus('tariffStatus', `Imported ${n} gates from ${src}.`, 'ok');
 }
 
