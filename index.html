@@ -90,8 +90,6 @@ tfoot td{font-weight:500;background:#fafafa;color:#212121}
   <section class="card" id="connectCard">
     <h2>Connect</h2>
     <div class="row">
-      <div style="max-width:120px"><label>Region</label>
-        <select id="region"><option value="us1" selected>us1</option><option value="eu1">eu1</option><option value="za1">za1</option></select></div>
       <div style="max-width:170px"><label>Sign in with</label>
         <select id="authMode" onchange="authModeChanged()"><option value="login" selected>Fleet login</option><option value="key">API key</option></select></div>
       <div style="flex:2" class="auth-login"><label>Fleet username</label><input id="username" autocomplete="username" placeholder="Same as fleet.mtrack.co.za"></div>
@@ -255,7 +253,6 @@ function setStatus(id, msg, cls = '') { const el = $(id); el.textContent = msg; 
 
 // ── Connect ──────────────────────────────────────────
 async function connect() {
-  S.region = $('region').value;
   const useKey = $('authMode').value === 'key';
   S.key = useKey ? $('apiKey').value.trim() : '';
   let client = $('clientId').value.trim();
@@ -330,7 +327,7 @@ async function loadClient(client) {
   await loadGates();
   $('whoami').innerHTML = (S.clientList.length > 1
     ? `<input id="clientPick" list="clientDl" value="${esc(S.clientName)}" onfocus="this.select()" onchange="pickClient(this)" title="Type to search your clients" style="width:320px;padding:4px 8px"><datalist id="clientDl">${S.clientList.filter(c => !/cancel/i.test(c.name)).map(c => `<option value="${esc(c.name)}">`).join('')}</datalist>`
-    : `<span>${esc(S.clientName)}</span>`) + `<span class="pill">${S.region}</span>`;
+    : `<span>${esc(S.clientName)}</span>`);
   applyRange(); renderAssets();
   setStatus('runStatus', toll ? '' : 'No zone group with "toll" in its name was found for this client.', toll ? '' : 'err');
 }
@@ -909,7 +906,7 @@ function tab(btn) {
 (() => {
   const q = new URLSearchParams(location.search);
   if (q.get('client')) $('clientId').value = q.get('client');
-  if (q.get('region')) $('region').value = q.get('region');
+  if (q.get('region')) S.region = q.get('region');
   if (q.get('auth') === 'key') { $('authMode').value = 'key'; authModeChanged(); }
 })();
 </script>
